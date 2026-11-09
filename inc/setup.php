@@ -1,6 +1,6 @@
 <?php
 /**
- * One-time setup for Mr.Clone.AI.
+ * One-time setup for MrClone.AI.
  *
  * This is a single-page theme: WordPress serves front-page.php on the site
  * root automatically, so the theme works with zero configuration. Setup here
@@ -64,7 +64,7 @@ function mrclone_setup_notice() {
 		return;
 	}
 	$url = admin_url( 'themes.php?page=mrclone-setup' );
-	echo '<div class="notice notice-info"><p><strong>Mr.Clone.AI</strong> — ';
+	echo '<div class="notice notice-info"><p><strong>MrClone.AI</strong> — ';
 	echo 'finish setup: <a href="' . esc_url( $url ) . '">open the setup screen</a>.</p></div>';
 }
 add_action( 'admin_notices', 'mrclone_setup_notice' );
@@ -74,8 +74,8 @@ add_action( 'admin_notices', 'mrclone_setup_notice' );
  */
 function mrclone_setup_menu() {
 	add_theme_page(
-		__( 'Mr.Clone.AI Setup', 'mrclone-ai' ),
-		__( 'Mr.Clone.AI Setup', 'mrclone-ai' ),
+		__( 'MrClone.AI Setup', 'mrclone-ai' ),
+		__( 'MrClone.AI Setup', 'mrclone-ai' ),
 		'manage_options',
 		'mrclone-setup',
 		'mrclone_setup_page'
@@ -95,7 +95,7 @@ function mrclone_setup_page() {
 	$home        = get_page_by_path( 'home' );
 	$front_ok    = ( 'page' === get_option( 'show_on_front' ) && (int) get_option( 'page_on_front' ) === ( $home ? $home->ID : 0 ) );
 	$permalink   = get_option( 'permalink_structure' );
-	$booking_url = get_theme_mod( 'mrclone_booking_url', 'https://calendly.com/mrclone' );
+	$endpoint    = mrclone_opt( 'form_endpoint' );
 
 	$row = function ( $label, $ok, $detail = '' ) {
 		printf(
@@ -107,7 +107,7 @@ function mrclone_setup_page() {
 	};
 	?>
 	<div class="wrap">
-		<h1>Mr.Clone.AI Setup</h1>
+		<h1>MrClone.AI Setup</h1>
 		<p>This is a single-page theme. WordPress serves the design on the home
 		URL automatically. Use the checklist below to keep the admin tidy.</p>
 
@@ -118,7 +118,8 @@ function mrclone_setup_page() {
 				$row( 'Home page exists', (bool) $home, $home ? 'ID ' . $home->ID : 'not created yet' );
 				$row( 'Static front page', $front_ok, $front_ok ? 'Home is the front page' : 'Reading settings not pointed at Home' );
 				$row( 'Pretty permalinks', '' !== $permalink, $permalink ? $permalink : 'still using plain ?p= URLs' );
-				$row( 'Booking link set', ! empty( $booking_url ), $booking_url );
+				$row( 'WhatsApp number set', '' !== mrclone_opt( 'whatsapp' ), mrclone_opt( 'whatsapp_display' ) );
+				$row( 'Applications email', is_email( mrclone_opt( 'apply_email' ) ), $endpoint ? 'External webhook: ' . $endpoint : mrclone_opt( 'apply_email' ) );
 				?>
 			</tbody>
 		</table>
@@ -130,9 +131,8 @@ function mrclone_setup_page() {
 
 		<h2>Notes</h2>
 		<ul style="list-style:disc;margin-left:20px;max-width:720px">
-			<li>Change the booking link under <em>Appearance &rarr; Customize &rarr; Mr.Clone.AI</em>.</li>
-			<li>Packages (Launch / Scale / Empire) are static in the template today.
-			They are marked in the code as WooCommerce-ready for the future.</li>
+			<li>Contact details, social links and the application-form endpoint live under <em>Appearance &rarr; Customize &rarr; MrClone.AI</em>.</li>
+			<li>To swap a film, replace the file in <code>assets/videos</code> with one of the same name (.mp4, H.264).</li>
 			<li>After activating, visit <em>Settings &rarr; Permalinks &rarr; Save</em> once to flush rewrite rules.</li>
 		</ul>
 	</div>

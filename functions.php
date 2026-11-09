@@ -1,11 +1,10 @@
 <?php
 /**
- * Mr.Clone.AI theme functions.
+ * MrClone.AI theme functions.
  *
- * Single-page cinematic theme. Content is intentionally static in the
- * templates (per client decision); the booking link is editable via the
- * Customizer. Packages are static HTML today and left WooCommerce-ready
- * for the future (see front-page.php → #packages).
+ * Single-page theme. Content is static in front-page.php; contact details,
+ * social links and the application-form endpoint are editable under
+ * Appearance → Customize → MrClone.AI.
  *
  * @package MrCloneAI
  */
@@ -14,10 +13,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'MRCLONE_VERSION', '1.0.0' );
+define( 'MRCLONE_VERSION', '2.0.0' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 require_once get_template_directory() . '/inc/setup.php';
+require_once get_template_directory() . '/inc/applications.php';
 
 /**
  * Theme supports.
@@ -27,18 +27,66 @@ function mrclone_after_setup_theme() {
 	add_theme_support( 'post-thumbnails' );
 	add_theme_support( 'html5', array( 'search-form', 'gallery', 'caption', 'style', 'script' ) );
 	add_theme_support( 'automatic-feed-links' );
-	add_theme_support( 'menus' );
-
-	// The design has a minimal header (brand + one CTA) and a text-only
-	// footer — there is no multi-item link list. We still register a
-	// "primary" location so a menu can be added later from Appearance → Menus.
-	register_nav_menus(
-		array(
-			'primary' => __( 'Header (optional links)', 'mrclone-ai' ),
-		)
-	);
 }
 add_action( 'after_setup_theme', 'mrclone_after_setup_theme' );
+
+/**
+ * Default values for every Customizer option.
+ *
+ * @return array
+ */
+function mrclone_defaults() {
+	return array(
+		'whatsapp'         => '971528160620',
+		'whatsapp_display' => '+971 52 816 0620',
+		'email'            => 'hello@mrclone.ai',
+		'apply_email'      => 'hello@mrclone.ai',
+		'form_endpoint'    => '',
+		'instagram_url'    => 'https://www.instagram.com/mr.clone.ai',
+		'linkedin_url'     => 'https://www.linkedin.com/in/mabroukothman/',
+	);
+}
+
+/**
+ * Read a theme option, falling back to its default.
+ *
+ * @param string $key Option key without the "mrclone_" prefix.
+ * @return string
+ */
+function mrclone_opt( $key ) {
+	$defaults = mrclone_defaults();
+	$value    = get_theme_mod( 'mrclone_' . $key, isset( $defaults[ $key ] ) ? $defaults[ $key ] : '' );
+	return is_string( $value ) ? $value : '';
+}
+
+/**
+ * WhatsApp chat link for the configured number.
+ *
+ * @return string
+ */
+function mrclone_whatsapp_url() {
+	return 'https://wa.me/' . preg_replace( '/\D+/', '', mrclone_opt( 'whatsapp' ) );
+}
+
+/**
+ * Echo the URL of a file inside assets/.
+ *
+ * @param string $path Path relative to assets/, e.g. "images/ramses.jpg".
+ */
+function mrclone_asset( $path ) {
+	echo esc_url( get_template_directory_uri() . '/assets/' . ltrim( $path, '/' ) );
+}
+
+/**
+ * Link to an on-page section. Bare "#id" on the front page, "home/#id" elsewhere
+ * (e.g. the 404 page) so the nav still works.
+ *
+ * @param string $id Section id without "#".
+ * @return string
+ */
+function mrclone_anchor( $id ) {
+	return ( is_front_page() ? '' : home_url( '/' ) ) . '#' . $id;
+}
 
 /**
  * Enqueue styles and scripts.
@@ -46,52 +94,83 @@ add_action( 'after_setup_theme', 'mrclone_after_setup_theme' );
 function mrclone_enqueue_assets() {
 	$dir = get_template_directory();
 	$uri = get_template_directory_uri();
-
-	// Design CSS (fonts are embedded inside it as woff2 data URIs).
-	wp_enqueue_style(
-		'mrclone-styles',
-		$uri . '/assets/css/styles.css',
-		array(),
-		file_exists( "$dir/assets/css/styles.css" ) ? filemtime( "$dir/assets/css/styles.css" ) : MRCLONE_VERSION
-	);
-
-	$v = function ( $rel ) use ( $dir ) {
-		return file_exists( "$dir/$rel" ) ? filemtime( "$dir/$rel" ) : MRCLONE_VERSION;
+	$ver = function ( $rel ) use ( $dir ) {
+		return file_exists( "$dir/$rel" ) ? (string) filemtime( "$dir/$rel" ) : MRCLONE_VERSION;
 	};
 
-	// Failsafe loader guard — load early, in the head.
-	wp_enqueue_script( 'mrclone-failsafe', $uri . '/assets/js/failsafe.js', array(), $v( 'assets/js/failsafe.js' ), false );
+	wp_enqueue_style(
+		'mrclone-fonts',
+		'https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Instrument+Sans:wght@400;500;600&display=swap',
+		array(),
+		null
+	);
+	wp_enqueue_style( 'mrclone-main', $uri . '/assets/css/main.css', array( 'mrclone-fonts' ), $ver( 'assets/css/main.css' ) );
 
-	// Vendor libraries (order matters): GSAP → ScrollTrigger → Lenis.
-	wp_enqueue_script( 'mrclone-gsap', $uri . '/assets/js/vendor-gsap.js', array(), $v( 'assets/js/vendor-gsap.js' ), true );
-	wp_enqueue_script( 'mrclone-scrolltrigger', $uri . '/assets/js/vendor-scrolltrigger.js', array( 'mrclone-gsap' ), $v( 'assets/js/vendor-scrolltrigger.js' ), true );
-	wp_enqueue_script( 'mrclone-lenis', $uri . '/assets/js/vendor-lenis.js', array(), $v( 'assets/js/vendor-lenis.js' ), true );
+	// The script drives the hero film, players, form etc. — none of which exist on the 404 page.
+	if ( is_404() ) {
+		return;
+	}
 
-	// App / cinematic scroll engine.
-	wp_enqueue_script(
-		'mrclone-app',
-		$uri . '/assets/js/app.js',
-		array( 'mrclone-gsap', 'mrclone-scrolltrigger', 'mrclone-lenis' ),
-		$v( 'assets/js/app.js' ),
-		true
+	wp_enqueue_script( 'mrclone-main', $uri . '/assets/js/main.js', array(), $ver( 'assets/js/main.js' ), true );
+	wp_localize_script(
+		'mrclone-main',
+		'MRCLONE',
+		array(
+			'formEndpoint' => esc_url_raw( mrclone_opt( 'form_endpoint' ) ),
+			'whatsapp'     => preg_replace( '/\D+/', '', mrclone_opt( 'whatsapp' ) ),
+			'applyUrl'     => esc_url_raw( rest_url( 'mrclone/v1/apply' ) ),
+		)
 	);
 }
 add_action( 'wp_enqueue_scripts', 'mrclone_enqueue_assets' );
 
 /**
- * Booking / consultation URL used by every CTA.
- * Editable under Appearance → Customize → Mr.Clone.AI.
+ * Preconnect to Google Fonts.
  *
- * @return string
+ * @param array  $urls          URLs to print for resource hints.
+ * @param string $relation_type The relation type the URLs are printed for.
+ * @return array
  */
-function mrclone_booking_url() {
-	$url = get_theme_mod( 'mrclone_booking_url', 'https://calendly.com/mrclone' );
-	return esc_url( $url );
+function mrclone_resource_hints( $urls, $relation_type ) {
+	if ( 'preconnect' === $relation_type ) {
+		$urls[] = 'https://fonts.googleapis.com';
+		$urls[] = array(
+			'href'        => 'https://fonts.gstatic.com',
+			'crossorigin' => 'anonymous',
+		);
+	}
+	return $urls;
 }
+add_filter( 'wp_resource_hints', 'mrclone_resource_hints', 10, 2 );
+
+/**
+ * Meta description + Open Graph tags. Skipped when an SEO plugin is active
+ * so the tags are never printed twice.
+ */
+function mrclone_meta_tags() {
+	echo '<meta name="theme-color" content="#06080A">' . "\n";
+
+	if ( defined( 'WPSEO_VERSION' ) || defined( 'RANK_MATH_VERSION' ) || defined( 'AIOSEO_VERSION' ) || defined( 'SEOPRESS_VERSION' ) ) {
+		return;
+	}
+	$desc = 'MrClone.AI builds your AI Twin from one filming day, then writes, produces and publishes short-form video for you every month. Dubai, serving clients worldwide.';
+	printf( '<meta name="description" content="%s">' . "\n", esc_attr( $desc ) );
+	printf( '<meta property="og:title" content="%s">' . "\n", esc_attr( 'MrClone.AI — Meet your Twin' ) );
+	printf( '<meta property="og:description" content="%s">' . "\n", esc_attr( 'Film once. Show up everywhere. An approved AI Twin of you, producing content every week without you going back to camera.' ) );
+	printf( '<meta property="og:url" content="%s">' . "\n", esc_url( home_url( '/' ) ) );
+	echo '<meta property="og:type" content="website">' . "\n";
+	echo '<meta property="og:image" content="';
+	mrclone_asset( 'images/og-mrclone.jpg' );
+	echo '">' . "\n";
+}
+add_action( 'wp_head', 'mrclone_meta_tags', 1 );
 
 /**
  * Keep <body> classes clean so WordPress-generated classes never fight the
  * design CSS. Only whitelist the handful WP genuinely needs.
+ *
+ * @param array $classes Body classes.
+ * @return array
  */
 function mrclone_body_class( $classes ) {
 	$keep = array( 'logged-in', 'admin-bar', 'rtl' );
